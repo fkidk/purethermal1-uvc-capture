@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from uvctypes import *
-import time
 import cv2
 import numpy as np
 try:
@@ -10,6 +9,9 @@ try:
 except ImportError:
   from Queue import Queue
 import platform
+
+WIDTH  = 640
+HEIGHT = 480
 
 BUF_SIZE = 2
 q = Queue(BUF_SIZE)
@@ -37,11 +39,11 @@ def py_frame_callback(frame, userptr):
 
 PTR_PY_FRAME_CALLBACK = CFUNCTYPE(None, POINTER(uvc_frame), c_void_p)(py_frame_callback)
 
-def ktof(val):
-  return (1.8 * ktoc(val) + 32.0)
-
 def ktoc(val):
   return (val - 27315) / 100.0
+
+def ctok(val):
+  return int(val * 100.0 + 27315)
 
 def raw_to_8bit(data):
   cv2.normalize(data, data, 0, 65535, cv2.NORM_MINMAX)
@@ -54,6 +56,14 @@ def display_temperature(img, val_k, loc, color):
   x, y = loc
   cv2.line(img, (x - 2, y), (x + 2, y), color, 1)
   cv2.line(img, (x, y - 2), (x, y + 2), color, 1)
+
+def color_area(img, thermal_img, threshold=30):
+  _threshold = ctok(threshold)
+  _, thresholded_img = cv2.threshold(thermal_img, _threshold, 255, cv2.THRESH_BINARY)
+  th_img = np.zeros(shape=(HEIGHT, WIDTH, 3))
+  th_img[:,:,2] = thresholded_img
+  th_img = th_img.astype(np.uint8)
+  return cv2.addWeighted(img, 0.5, th_img, 0.5, 0.0)
 
 def main():
   ctx = POINTER(uvc_context)()
@@ -97,20 +107,23 @@ def main():
         print("uvc_start_streaming failed: {0}".format(res))
         exit(1)
 
+      cam = cv2.VideoCapture(2)
+      cam.set(3, WIDTH)
+      cam.set(4, HEIGHT)
+
       try:
         while True:
           data_raw = q.get(True, 500)
+          _, img = cam.read()
           if data_raw is None:
             break
-          data = cv2.resize(data_raw[:,:], (640, 480))
-          minVal, maxVal, minLoc, maxLoc = cv2.minMaxLoc(data)
-          img = raw_to_8bit(data)
-          display_temperature(img, minVal, minLoc, (255, 0, 0))
-          display_temperature(img, maxVal, maxLoc, (0, 0, 255))
+          data_raw = cv2.resize(data_raw[:,:], (WIDTH, HEIGHT))
+          minVal, maxVal, minLoc, maxLoc = cv2.minMaxLoc(data_raw)
+          img = color_area(img, data_raw, threshold=30)
+#          display_temperature(img, minVal, minLoc, (255, 0, 0))
+          display_temperature(img, maxVal, maxLoc, (0, 255, 255))
           cv2.imshow('Lepton Radiometry', img)
           if cv2.waitKey(1) == 27:
-            a = np.asarray(data_raw)
-            np.savetxt("thermal.csv", a, delimiter=';', fmt='%i')
             break
         cv2.destroyAllWindows()
       finally:
