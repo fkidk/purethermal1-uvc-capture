@@ -57,6 +57,9 @@ def display_temperature(img, val_k, loc, color):
   cv2.line(img, (x - 2, y), (x + 2, y), color, 1)
   cv2.line(img, (x, y - 2), (x, y + 2), color, 1)
 
+def display_avg(img, val, color):
+  cv2.putText(img,"{0:.1f}C".format(val), (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, color, 2)
+
 def color_area(img, thermal_img, threshold=30):
   _threshold = ctok(threshold)
   _, thresholded_img = cv2.threshold(thermal_img, _threshold, 255, cv2.THRESH_BINARY)
@@ -64,6 +67,14 @@ def color_area(img, thermal_img, threshold=30):
   th_img[:,:,2] = thresholded_img
   th_img = th_img.astype(np.uint8)
   return cv2.addWeighted(img, 0.5, th_img, 0.5, 0.0)
+
+def get_average(thermal_img, threshold=30):
+  _threshold = ctok(threshold)
+  values = thermal_img
+  values[values < _threshold] = 0  
+  masked = np.ma.masked_equal(values, 0)
+  avg = np.average(masked)  
+  return ktoc(avg)
 
 def main():
   ctx = POINTER(uvc_context)()
@@ -120,8 +131,10 @@ def main():
           data_raw = cv2.resize(data_raw[:,:], (WIDTH, HEIGHT))
           minVal, maxVal, minLoc, maxLoc = cv2.minMaxLoc(data_raw)
           img = color_area(img, data_raw, threshold=30)
+          avg_tmp = get_average(data_raw, threshold=30)
 #          display_temperature(img, minVal, minLoc, (255, 0, 0))
           display_temperature(img, maxVal, maxLoc, (0, 255, 255))
+          display_avg(img, avg_tmp, (255, 0, 0))
           cv2.imshow('Lepton Radiometry', img)
           if cv2.waitKey(1) == 27:
             break
