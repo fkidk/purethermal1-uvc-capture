@@ -52,13 +52,14 @@ def raw_to_8bit(data):
 
 def display_temperature(img, val_k, loc, color):
   val = ktoc(val_k)
-  cv2.putText(img,"{0:.1f}C".format(val), loc, cv2.FONT_HERSHEY_SIMPLEX, 0.75, color, 2)
+  cv2.putText(img, "{0:.1f}C".format(val), loc, cv2.FONT_HERSHEY_SIMPLEX, 0.75, color, 2)
   x, y = loc
   cv2.line(img, (x - 2, y), (x + 2, y), color, 1)
   cv2.line(img, (x, y - 2), (x, y + 2), color, 1)
 
-def display_avg(img, val, color):
-  cv2.putText(img,"{0:.1f}C".format(val), (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, color, 2)
+def display_avg(img, val_k, color):
+  val = ktoc(val_k)
+  cv2.putText(img, f'{val:.1f}C', (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, color, 2)
 
 def color_area(img, thermal_img, threshold=30):
   _threshold = ctok(threshold)
@@ -74,7 +75,7 @@ def get_average(thermal_img, threshold=30):
   values[values < _threshold] = 0  
   masked = np.ma.masked_equal(values, 0)
   avg = np.average(masked)  
-  return ktoc(avg)
+  return avg
 
 def main():
   ctx = POINTER(uvc_context)()
@@ -118,7 +119,7 @@ def main():
         print("uvc_start_streaming failed: {0}".format(res))
         exit(1)
 
-      cam = cv2.VideoCapture(2)
+      cam = cv2.VideoCapture(0)
       cam.set(3, WIDTH)
       cam.set(4, HEIGHT)
 
@@ -130,8 +131,8 @@ def main():
             break
           data_raw = cv2.resize(data_raw[:,:], (WIDTH, HEIGHT))
           minVal, maxVal, minLoc, maxLoc = cv2.minMaxLoc(data_raw)
-          img = color_area(img, data_raw, threshold=30)
-          avg_tmp = get_average(data_raw, threshold=30)
+          img = color_area(img, data_raw, threshold=32)
+          avg_tmp = get_average(data_raw, threshold=32)
 #          display_temperature(img, minVal, minLoc, (255, 0, 0))
           display_temperature(img, maxVal, maxLoc, (0, 255, 255))
           display_avg(img, avg_tmp, (255, 0, 0))
